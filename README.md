@@ -13,14 +13,26 @@ Production-grade Arabic sentiment classification service and end-to-end MLOps pl
 
 ## ⚡ Quickstart
 
+Choose between running just the inference service or bringing up the entire MLOps ecosystem:
+
+### Track 1: Fast Inference Service
 ```bash
-# 1. Clone repository
+# Run standalone serving container from GitHub Container Registry
+docker run -d --name prodml-serving -p 8000:8000 \
+  ghcr.io/yossef-moftah-dev/arabic-sentiment-arabert:latest
+```
+
+### Track 2: Full MLOps Stack
+```bash
+# Clone repository
 git clone https://github.com/Yossef-moftah-dev/arabic-sentiment-arabert.git && cd arabic-sentiment-arabert
 
-# 2. Launch full platform stack (Airflow, BentoML, MLflow, Postgres, MinIO, Prometheus, Grafana, Alertmanager)
+# Launch full stack (BentoML, Airflow, MLflow, Postgres, MinIO, Prometheus, Grafana, Alertmanager)
 docker compose up -d --build
+```
 
-# 3. Test real-time inference
+### Test Real-Time Inference
+```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
   -d '{"text": "المنتج رائع جدا وأنصح به بشدة"}'
@@ -30,140 +42,39 @@ curl -X POST http://localhost:8000/predict \
 
 ## 🌐 Platform Architecture & Services
 
+The platform integrates 10 containerized services for a resilient production lifecycle:
+
 | Service | Port / URL | Credentials | Purpose |
 | :--- | :--- | :--- | :--- |
 | **BentoML / FastAPI** | [`http://localhost:8000`](http://localhost:8000) | — | Production serving with dynamic micro-batching (`max_batch=64`) |
-| **Grafana Observability** | [`http://localhost:3000`](http://localhost:3000) | `admin` / `admin` | Dashboards as code (Health/Ingress, Stage Latency, Data/Drift, System) |
+| **Canary Reverse Proxy** | [`http://localhost:80`](http://localhost:80) | — | Nginx weighted traffic splitting (95% Prod / 5% Canary) |
+| **Grafana Observability** | [`http://localhost:3000`](http://localhost:3000) | `admin` / `admin` | Dashboards as code (Health/Ingress, Stage Latency, Drift, System) |
 | **Prometheus Telemetry** | [`http://localhost:9090`](http://localhost:9090) | — | TSDB scraping `/metrics`, SLA evaluation, and quantile histograms |
 | **Alertmanager Routing** | [`http://localhost:9093`](http://localhost:9093) | — | Alert routing, grouping, and immediate on-call action runbooks |
-| **Canary Reverse Proxy** | [`http://localhost:80`](http://localhost:80) | — | Nginx weighted traffic splitting (95% Prod / 5% Canary) |
 | **Apache Airflow UI** | [`http://localhost:8080`](http://localhost:8080) | `admin` / `admin` | DAG orchestration, automated training & quality gate branching |
 | **MLflow Tracking** | [`http://localhost:5000`](http://localhost:5000) | — | Experiment tracking, metric curves, and Model Registry |
 | **MinIO Console** | [`http://localhost:9001`](http://localhost:9001) | `minioadmin` / `minioadmin` | Object storage browser and administrative management |
 | **MinIO S3 API** | `http://localhost:9000` | `minioadmin` / `minioadmin` | S3-compatible remote storage for DVC and MLflow artifacts |
-| **PostgreSQL 16** | `localhost:5432` | `mlflow` / `mlflow_password` | Backend store for MLflow (`mlflow`), Airflow (`airflow`), & Drift (`monitoring_drift_records`) |
+| **PostgreSQL 16** | `localhost:5432` | `mlflow` / `mlflow_password` | Backend store for MLflow, Airflow, and drift monitoring records |
 
-
----
-
-## 📦 GitHub Container Registry (GHCR) & Deployment
-
-The serving service is automatically verified, built, and published to **GitHub Container Registry (GHCR)** on every release and commit:
-
-### 1. Pull Pre-Built Image
-```bash
-# Pull by specific Git commit SHA (deterministic reproducible artifact)
-docker pull ghcr.io/yossef-moftah-dev/arabic-sentiment-arabert:<commit_sha>
-
-# Pull latest stable release
-docker pull ghcr.io/yossef-moftah-dev/arabic-sentiment-arabert:latest
-```
-
-### 2. Standalone Container Execution
-```bash
-docker run -d --name prodml-service \
-  -p 8000:8000 \
-  -v $(pwd)/outputs/final_model:/app/outputs/final_model:ro \
-  ghcr.io/yossef-moftah-dev/arabic-sentiment-arabert:latest
-```
-
-### 3. Zero-Downtime Deployment & Automated Rollback (`scripts/deploy.sh`)
-The repository includes [`scripts/deploy.sh`](scripts/deploy.sh), an idempotent deployment script featuring **automated healthcheck validation and sub-second rollback**:
-```bash
-# Deploy a specific Git commit SHA or release tag
-./scripts/deploy.sh --tag 28d5d6e13e819e1f68e23ef39e0f516606036ec2
-
-# Deploy the latest GHCR package
-./scripts/deploy.sh --latest
-
-# Immediately rollback to previous active container
-./scripts/deploy.sh --rollback
-```
+> 📌 **Architecture Deep Dive:** View the end-to-end dataflow and feedback loops in [**Platform Architecture & Design**](docs/architecture.md).
 
 ---
 
-## ☁️ EC2 Deployment & Automation Script
+## 🔁 End-to-End MLOps Lifecycle
 
-The repository includes [`EC2_instance_setup.sh`](EC2_instance_setup.sh), a single-command provisioning script for Ubuntu, Debian, Amazon Linux, and RHEL instances:
-
-### What the Script Automates
-1. **Docker Engine & Compose:** Installs Docker CE and the Compose plugin via official package repositories.
-2. **2GB Swap Allocation:** Configures swap space to prevent Out-Of-Memory (OOM) failures during Docker builds on burstable instances (`t2.micro`, `t3.small`).
-3. **Environment Tooling:** Installs Astral `uv` for high-speed Python package execution.
-4. **Stack Launch:** Clones or updates the repo and starts all services in detached mode (`docker compose up -d --build`).
-5. **Network Output:** Automatically detects the EC2 public IP and outputs direct browser links.
-
-### Running the Setup Script on EC2
+### 1. Data Versioning & Storage (DVC + MinIO)
+Pipelines and dataset splits are hashed and cached with DVC backed by MinIO S3 object storage:
 ```bash
-# Option A: Run directly on EC2
-curl -fsSL https://raw.githubusercontent.com/Yossef-moftah-dev/arabic-sentiment-arabert/main/EC2_instance_setup.sh | bash
+# Execute and cache reproducible pipeline stages (prepare_data -> evaluate)
+uv run dvc repro
 
-# Option B: Run locally via SSH
-ssh -i ~/Downloads/kk.pem ubuntu@<EC2_PUBLIC_DNS> "bash -s" < EC2_instance_setup.sh
+# Synchronize dataset artifacts with MinIO remote
+uv run dvc push && uv run dvc pull
 ```
 
-### Accessing Remote Services
-- **Direct Public Access:** Open `http://<EC2_PUBLIC_DNS>:8000/docs`, `:5000`, or `:9001` in your browser (requires AWS Security Group Inbound TCP rules for ports `8000`, `5000`, `9001`, and `9000`).
-- **Encrypted SSH Tunnel:** If ports are restricted to SSH (Port 22), run the tunnel helper locally:
-  ```bash
-  ./scripts/tunnel_services.sh [path/to/kk.pem] [EC2_PUBLIC_DNS]
-  ```
-  *(Forwards remote ports to `localhost:8000`, `localhost:5000`, `localhost:9001`, and `localhost:9000`).*
-
-### Populating MLflow Experiments on EC2
-To populate the 5 model exploration runs and register the Production model inside the EC2 MLflow database:
-```bash
-ssh -i ~/Downloads/kk.pem ubuntu@<EC2_PUBLIC_DNS> \
-  "cd ~/arabic-sentiment-arabert && uv run python scripts/run_experiments.py"
-```
-
----
-
-## 📡 API Usage & Endpoints
-
-Interactive OpenAPI Swagger docs are available at `http://localhost:8000/docs`.
-
-### 1. Single & Batch Predictions
-```bash
-# Single prediction
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{"text": "الخدمة ممتازة والتوصيل سريع جدا"}'
-
-# Batch prediction
-curl -X POST http://localhost:8000/predict/batch \
-  -H "Content-Type: application/json" \
-  -d '{"texts": ["المنتج رائع جدا", "تجربة سيئة ولن أكررها", "عادي لا بأس به"]}'
-```
-
-### 2. Code-Free Model Hot-Reload (`POST /model/reload`)
-Reloads weights from the MLflow Model Registry into memory with **zero downtime** and without redeploying containers:
-```bash
-curl -X POST "http://localhost:8000/model/reload?model_uri=models:/arabic-sentiment-model/Production"
-```
-
-### 3. Health & Lineage Metadata (`GET /health`, `GET /metadata`)
-```bash
-# Memory residency health check
-curl -s http://localhost:8000/health
-
-# SHA-256 weight hash, active registry version, and class mappings
-curl -s http://localhost:8000/metadata
-```
-
----
-
-## 🔬 MLflow Tracking & Model Registry
-
-Systematic model exploration across 5 runs spanning 3 distinct model architectures (`AraBERT`, `CAMeLBERT`, `MARBERT`):
-
-```bash
-# Run experiment matrix and log to MLflow
-uv run python scripts/run_experiments.py
-
-# Demonstrate zero-downtime hot-swap between model versions
-uv run python scripts/demonstrate_model_swap.py
-```
+### 2. Experiment Tracking & Model Registry (MLflow)
+Systematic model exploration across 5 runs spanning 3 distinct transformer architectures (`AraBERT`, `CAMeLBERT`, `MARBERT`):
 
 | Run Name | Model Family | Chunk / Strategy | Epochs | Val Loss | Val Acc | Macro F1 | Registry Lifecycle |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -173,91 +84,102 @@ uv run python scripts/demonstrate_model_swap.py
 | `run-4-marbert-chunk64` | MARBERT | 64 / Head Truncate | 3 | 0.378 | 84.9% | 0.834 | — |
 | `run-5-arabert-champion-chunk128` | AraBERT | 128 / Window Overlap | 5 | **0.281** | **89.8%** | **0.887** | **Version 2 (Production)** |
 
-Comparative UI screenshot captured in [`reports/mlflow_comparison.png`](reports/mlflow_comparison.png).
-
----
-
-## 🔄 DVC Data Versioning
-
-Pipelines and dataset splits are hashed and cached via DVC backed by MinIO S3 storage:
+*(Visual comparison captured in [`reports/mlflow_comparison.png`](reports/mlflow_comparison.png))*
 
 ```bash
-# Execute and cache reproducible stages (prepare_data -> evaluate)
-uv run dvc repro
+# Execute experiment matrix & log to MLflow
+uv run python scripts/run_experiments.py
 
-# Push/pull dataset artifacts to/from MinIO remote
-uv run dvc push
-uv run dvc pull
+# Demonstrate zero-downtime hot-swap between model versions
+uv run python scripts/demonstrate_model_swap.py
 ```
 
----
-
-## 🛡️ CI/CD Quality Gates & Retraining
-
-### 1. Model Quality Gate (`scripts/model_quality_gate.py`)
-Blocks PR merges if candidate metrics regress below operational thresholds (Accuracy $\ge 0.70$, Macro F1 $\ge 0.65$, Latency $\le 100\text{ ms}$):
-```bash
-# Nominal evaluation (PASSED / Exit 0)
-uv run python scripts/model_quality_gate.py --metrics reports/eval_metrics.json
-
-# Simulated regression check (BLOCKS / Exit 1)
-uv run python scripts/model_quality_gate.py --simulate-regression
-```
-
-### 2. GitHub Actions Workflows
-- **CI Pipeline ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):** Runs `ruff`, `pytest` with coverage enforcement ($\ge 70\%$), model quality gate, and multi-stage Docker build/push.
-- **Continuous Retraining ([`.github/workflows/continuous-training.yml`](.github/workflows/continuous-training.yml)):** Supports cron schedule, manual workflow dispatch, and repository webhooks, with human approval required for `Production` deployment.
-
----
-
----
-
-## 📊 Production Observability & Closed Retraining Loop
-
-The platform features an end-to-end production monitoring and closed-loop retraining architecture:
-
-### 1. Real-Time Telemetry & Prometheus Metrics
-- **Metrics Exposition:** Exposes live request rates, p50/p95/p99 latency quantiles, sentiment class distributions, prediction confidences, and micro-batch distributions at `GET /metrics`.
-- **Multiprocess Concurrency Trap:** Handled via `PROMETHEUS_MULTIPROC_DIR` and `MultiProcessCollector` across Uvicorn/BentoML worker processes.
-
-### 2. Grafana Dashboard as Code (Zero-Click Recovery)
-- Declarative 4-row dashboard at `http://localhost:3000` (`admin`/`admin`):
-  1. **Row 1: Health & Ingress** (Throughput, 2xx/4xx/5xx status rates, model residency status)
-  2. **Row 2: Stage Latency** (p50, p95, p99 latency heatmaps and time-series)
-  3. **Row 3: Data & Drift Telemetry** (PSI scores, Wasserstein distance, sentiment class shares)
-  4. **Row 4: System Resources** (CPU utilization, resident memory RSS)
-
-### 3. Statistical Drift Simulation & Detection
-- **4 Drift Typologies (`monitoring/simulate_drift.py`):** Sudden, Gradual, Incremental, and Periodic/Seasonal drift.
-- **5 Detection Algorithms (`monitoring/drift_detector.py`):** Chi-Square ($\chi^2$), Wasserstein Distance ($W_1$), Population Stability Index (PSI), Jensen-Shannon (JS) Divergence, and Maximum Mean Discrepancy (MMD).
-- **Evidently AI & PostgreSQL Store (`monitoring/evidently_monitor.py`):** Generates interactive HTML reports (`reports/evidently_drift_report.html`) and persists structured drift records to PostgreSQL table `monitoring_drift_records`.
-
-### 4. Closed Retraining Loop & Storm Protections
-- **Defensive Storm Gates (`monitoring/retraining_trigger.py`):** Enforces Dwell Time Cooldown, 24-hour Rate Limiting, and Sample Volume/Quality sanity checks.
-- **End-to-End Automated Demonstration:**
+### 3. Accelerated Serving & Canary Routing
+- **Interactive Swagger Docs:** `http://localhost:8000/docs`
+- **Dynamic Micro-Batching:** Maximizes GPU/CPU utilization via BentoML adaptive queues (`max_batch=64`).
+- **Nginx Canary Splitting:** Directs 95% of traffic to Production and 5% to Canary for safe rollouts.
+- **Code-Free Hot-Reload (`POST /model/reload`):** Reloads weights into memory with zero downtime:
   ```bash
-  # Execute full automated closed retraining loop
-  uv run python scripts/demonstrate_closed_loop.py
-
-  # Deliberately fire and verify 3 production alert scenarios
-  uv run python scripts/test_alerts.py
+  curl -X POST "http://localhost:8000/model/reload?model_uri=models:/arabic-sentiment-model/Production"
   ```
+- **Health & Lineage:**
+  ```bash
+  curl -s http://localhost:8000/health
+  curl -s http://localhost:8000/metadata
+  ```
+
+### 4. Production Observability & Drift Detection
+- **Live Prometheus Telemetry (`GET /metrics`):** Request rates, p50/p95/p99 quantiles, and sentiment distributions with multi-worker concurrency protection (`PROMETHEUS_MULTIPROC_DIR`).
+- **Grafana Dashboard as Code (`http://localhost:3000`):** 4-row dashboard pre-provisioned via declarative JSON:
+  1. *Health & Ingress* (Throughput, HTTP status rates, model residency)
+  2. *Stage Latency* (p50, p95, p99 heatmaps and time-series)
+  3. *Data & Drift Telemetry* (PSI scores, Wasserstein distance, sentiment class shares)
+  4. *System Resources* (CPU, resident memory RSS)
+- **Statistical Drift Monitoring (`monitoring/drift_detector.py`):** Evaluates 4 drift typologies (sudden, gradual, incremental, periodic) using 5 statistical tests (PSI, Wasserstein $W_1$, $\chi^2$, Jensen-Shannon, MMD) with reports persisted to PostgreSQL and Evidently AI (`reports/evidently_drift_report.html`).
+
+### 5. Automated Closed-Loop Retraining & Storm Gates
+Protects production against cascading retraining storms using defensive gates in [`monitoring/retraining_trigger.py`](monitoring/retraining_trigger.py):
+- **Cooldown Dwell Time:** Requires sustained drift detection across windows before triggering.
+- **Rate Limiting:** Max 1 retrain trigger per 24-hour cycle.
+- **Sample Sanity Checks:** Minimum sample size and data quality validation.
+```bash
+# Execute end-to-end automated closed retraining demo
+uv run python scripts/demonstrate_closed_loop.py
+
+# Verify production alerting rules & Alertmanager routing
+uv run python scripts/test_alerts.py
+```
+
+### 6. CI/CD Quality Gates
+Blocks regressions before code or models hit production:
+- **Model Quality Gate ([`scripts/model_quality_gate.py`](scripts/model_quality_gate.py)):** Enforces strict performance gates ($\text{Accuracy} \ge 0.70$, $\text{Macro F1} \ge 0.65$, $\text{Latency} \le 100\text{ ms}$):
+  ```bash
+  uv run python scripts/model_quality_gate.py --metrics reports/eval_metrics.json
+  ```
+- **GitHub Actions Workflows:**
+  - [**CI Pipeline**](.github/workflows/ci.yml): Linting (`ruff`), test coverage ($\ge 70\%$), quality gate verification, and Docker image builds.
+  - [**Continuous Retraining**](.github/workflows/continuous-training.yml): Scheduled, webhook, and manual retraining with human approval gates.
+
+---
+
+## 🚀 Deployment & Operations
+
+### Zero-Downtime Deployment & Automated Rollback
+Deploy images with automated pre-flight healthcheck validation and instant sub-second rollback:
+```bash
+# Deploy latest image or specific Git SHA
+./scripts/deploy.sh --latest
+./scripts/deploy.sh --tag <commit_sha>
+
+# Immediately rollback to previous active container
+./scripts/deploy.sh --rollback
+```
+
+### GitHub Container Registry (GHCR)
+```bash
+docker pull ghcr.io/yossef-moftah-dev/arabic-sentiment-arabert:latest
+```
+
+### AWS EC2 Single-Command Provisioning
+The platform includes [`EC2_instance_setup.sh`](EC2_instance_setup.sh) to automate Docker CE, 2GB swap space allocation (preventing build OOM on burstable instances), Astral `uv`, and stack startup.
+
+> 📖 **Cloud Deployment Walkthrough:** For full EC2 setup, security groups, and SSH tunneling commands, see the [**AWS EC2 Deployment Guide**](docs/ec2-deployment.md).
 
 ---
 
 ## 🧪 Testing & Code Quality
 
 ```bash
-# Install dependencies
+# Install all development and optional dependencies
 uv sync --all-extras --dev
 
-# Run full test suite with coverage
+# Run full test suite with coverage enforcement (>= 70%)
 uv run pytest --cov=src/prodml --cov=monitoring --cov-report=term-missing --cov-fail-under=70
 
 # ONNX vs PyTorch logit parity check (< 1e-4 tolerance)
 uv run pytest tests/test_logit_parity.py -v
 
-# Code linting & formatting checks
+# Static analysis & formatting
 uv run ruff check src/ tests/ scripts/ monitoring/
 uv run ruff format --check src/ tests/ scripts/ monitoring/
 ```
@@ -266,9 +188,11 @@ uv run ruff format --check src/ tests/ scripts/ monitoring/
 
 ## 📄 Documentation & Reports
 
-- **Module 1 Report:** [`reports/module-1.md`](reports/module-1.md) (Foundation, Packaging & Service)
-- **Module 2 Report:** [`reports/module-2.md`](reports/module-2.md) (Tracking, Versioning & Quality Gates)
-- **Module 3 Report:** [`reports/module-3.md`](reports/module-3.md) (Serving, Orchestration & Load Testing)
-- **Module 4 Report:** [`reports/module-4.md`](reports/module-4.md) (Observability, Monitoring & Retraining)
-- **On-Call Runbooks:** [`docs/runbooks/`](docs/runbooks/) (Actionable Alert Incident Guides)
+- **Module 1 Report:** [`reports/module-1.md`](reports/module-1.md) — Foundation, Packaging & Service
+- **Module 2 Report:** [`reports/module-2.md`](reports/module-2.md) — Tracking, Versioning & Quality Gates
+- **Module 3 Report:** [`reports/module-3.md`](reports/module-3.md) — Serving, Orchestration & Load Testing
+- **Module 4 Report:** [`reports/module-4.md`](reports/module-4.md) — Observability, Monitoring & Retraining
+- **Architecture & System Design:** [`docs/architecture.md`](docs/architecture.md) — Mermaid Flow & Decisions
+- **AWS EC2 Guide:** [`docs/ec2-deployment.md`](docs/ec2-deployment.md) — Cloud Setup & Tunneling
+- **On-Call Runbooks:** [`docs/runbooks/`](docs/runbooks/) — Production Incident Runbooks
 - **License:** [MIT License](LICENSE)
