@@ -1,4 +1,4 @@
-# ProdML — Arabic Sentiment Analysis & MLOps Platform
+# Nazra (نظرة) — Arabic Sentiment Analysis & MLOps Platform
 
 [![CI](https://github.com/Yossef-moftah-dev/arabic-sentiment-arabert/actions/workflows/ci.yml/badge.svg)](https://github.com/Yossef-moftah-dev/arabic-sentiment-arabert/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v0.4.0-blue.svg)](pyproject.toml)

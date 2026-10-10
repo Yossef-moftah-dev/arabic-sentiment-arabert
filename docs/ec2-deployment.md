@@ -1,6 +1,6 @@
 # AWS EC2 Deployment & Automation Guide
 
-This guide covers provisioning and deploying the Arabic Sentiment MLOps platform on an AWS EC2 instance using the automated provisioning script [`EC2_instance_setup.sh`](../EC2_instance_setup.sh).
+This guide covers provisioning and deploying the **Nazra (نظرة)** Arabic Sentiment MLOps platform on an AWS EC2 instance using the automated provisioning script [`EC2_instance_setup.sh`](../EC2_instance_setup.sh).
 
 ---
 

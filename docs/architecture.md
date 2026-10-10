@@ -1,6 +1,6 @@
 # Platform Architecture & System Design
 
-This document details the architectural design and continuous feedback loops of the **ProdML Arabic Sentiment Analysis Platform**.
+This document details the architectural design and continuous feedback loops of the **Nazra (نظرة)** Arabic Sentiment Analysis Platform.
 
 ---
 
