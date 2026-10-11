@@ -1,13 +1,28 @@
-# Nazra (نظرة) — Arabic Sentiment Analysis & MLOps Platform
+<div align="center">
+
+<!-- Replace with your banner: 1280x320 PNG, "نظرة | Nazra" -->
+<img src="docs/assets/banner.png" alt="Nazra (نظرة)" width="100%"/>
+
+# نظرة · Nazra
+
+**Arabic sentiment analysis, served like it's production, because it is.**
+
+An end-to-end MLOps platform around AraBERT: train, track, serve, monitor, and retrain automatically.
 
 [![CI](https://github.com/Yossef-moftah-dev/arabic-sentiment-arabert/actions/workflows/ci.yml/badge.svg)](https://github.com/Yossef-moftah-dev/arabic-sentiment-arabert/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v0.4.0-blue.svg)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/Tests-68%20Passed-brightgreen.svg)](tests/)
 [![Coverage](https://img.shields.io/badge/Coverage-71%25-brightgreen.svg)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Airflow](https://img.shields.io/badge/Airflow-2.9+-017CEE?logo=apacheairflow&logoColor=white)](https://airflow.apache.org/)
+[![MLflow](https://img.shields.io/badge/MLflow-tracked-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org/)
+[![Triton](https://img.shields.io/badge/NVIDIA-Triton-76B900?logo=nvidia&logoColor=white)](https://github.com/triton-inference-server)
+[![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Production-grade Arabic sentiment classification service and end-to-end MLOps platform powered by AraBERT. Features Apache Airflow 2.9+ pipeline orchestration, high-throughput BentoML dynamic micro-batching, NVIDIA Triton & ONNX Runtime accelerated serving, Nginx canary routing with automated sub-second rollback, reproducible DVC pipelines, full MLflow experiment governance, and complete production observability (Prometheus, Grafana as code, Alertmanager, Evidently drift monitoring, and closed-loop retraining).
+[Quickstart](#-quickstart) · [Services](#-platform-architecture--services) · [Lifecycle](#-end-to-end-mlops-lifecycle) · [Deployment](#-deployment--operations) · [Testing](#-testing--code-quality) · [Docs](#-documentation--reports)
+
+</div>
 
 ---
 
