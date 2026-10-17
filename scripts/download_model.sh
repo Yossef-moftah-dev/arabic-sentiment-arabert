@@ -5,9 +5,15 @@
 # ==============================================================================
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-TARGET_DIR="${1:-$PROJECT_ROOT/outputs/final_model}"
+if [ -n "${1:-}" ]; then
+    TARGET_DIR="$1"
+elif [ -z "${BASH_SOURCE[0]:-}" ] || [[ "${BASH_SOURCE[0]}" =~ ^(/dev/|/proc/|bash|sh) ]]; then
+    TARGET_DIR="$(pwd)/outputs/final_model"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+    TARGET_DIR="$PROJECT_ROOT/outputs/final_model"
+fi
 GDRIVE_FOLDER="https://drive.google.com/drive/folders/1yeJcg-nrci3BDq01p9-pjtciv1c4g9rc"
 
 echo "=== ProdML Model Downloader ==="

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import bentoml
+from bentoml.exceptions import ServiceUnavailable
 from pydantic import BaseModel, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -67,40 +68,31 @@ class SentimentRunner:
             try:
                 self.predictor = SentimentPredictor.load(target_dir)
                 self.artifact_hash = calculate_artifact_hash(target_dir)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning(
-                    "Target model directory %s could not be loaded (%s). Using dummy predictor.",
+                    "Target model directory %s could not be loaded (%s). Model unloaded.",
                     target_dir,
                     exc,
                 )
                 self.predictor = None
-                self.artifact_hash = "mock_sha256_hash_1234567890abcdef"
+                self.artifact_hash = "not_loaded"
         else:
-            logger.warning(
-                "Target model directory %s not found. Using dummy predictor.", target_dir
-            )
+            logger.warning("Target model directory %s not found. Model unloaded.", target_dir)
             self.predictor = None
-            self.artifact_hash = "mock_sha256_hash_1234567890abcdef"
+            self.artifact_hash = "not_loaded"
 
     def predict_batch(self, texts: list[str]) -> list[dict[str, Any]]:
         """Run batched inference across list of Arabic texts."""
         if not texts:
             return []
 
-        if self.predictor is not None:
-            results = self.predictor.predict_batch(texts)
-            return [res.model_dump() for res in results]
+        if self.predictor is None:
+            raise ServiceUnavailable(
+                "Model weights are not resident in memory. Please mount valid fine-tuned weights."
+            )
 
-        # Fallback deterministic response if model files not present
-        return [
-            {
-                "label": "Positive",
-                "confidence": 0.92,
-                "probabilities": {"Negative": 0.03, "Neutral": 0.05, "Positive": 0.92},
-                "latency_ms": 15.0,
-            }
-            for _ in texts
-        ]
+        results = self.predictor.predict_batch(texts)
+        return [res.model_dump() for res in results]
 
 
 # -----------------------------------------------------------------------------
@@ -138,11 +130,13 @@ class ArabicSentimentService:
     @bentoml.api
     def health(self) -> dict[str, Any]:
         """Health check endpoint confirming memory residency."""
+        if self.runner.predictor is None:
+            raise ServiceUnavailable("Model is not resident in memory.")
         return {
             "status": "ok",
             "service": "bentoml",
             "framework": "BentoML 1.4+ Dynamic Micro-batching",
-            "model_loaded": self.runner.predictor is not None,
+            "model_loaded": True,
             "memory_resident": True,
         }
 

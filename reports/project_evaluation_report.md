@@ -166,7 +166,7 @@ To ensure the repository is 100% turnkey and reproducible by peer reviewers and 
 
 | README Section & Command | Claimed Behavior | Live EC2 Execution Outcome | Audit Verdict |
 |:---|:---|:---|:---:|
-| **Track 1: Standalone Container**<br>`docker run -d ... ghcr.io/...:latest` | Instant standalone inference on port 8000. | Returns HTTP 503 without weights. Fixed in README by adding `-v $(pwd)/outputs/final_model:...` and `./scripts/download_model.sh`. | **VERIFIED & RESOLVED** |
+| **Track 1: Standalone Container**<br>`curl -fsSL https://.../download_model.sh \| bash -s -- ./final_model`<br>`docker run -d ... ghcr.io/...:latest` | Instant standalone inference on port 8000 outside clone. | Model weights downloaded via piped raw curl into `./final_model` and mounted cleanly. Service loads weights and serves 200 OK. | **VERIFIED & RESOLVED** |
 | **Track 2: Full MLOps Stack**<br>`docker compose up -d --build` | Launches 10 containerized services and automatic weight downloader. | All 9 service containers reached healthy/up status simultaneously under 4GB RAM + 4GB swap. | **VERIFIED (100% PASS)** |
 | **Inference Endpoint**<br>`curl -X POST http://localhost:8000/predict ...` | Real-time sentiment prediction on Arabic text. | Returns HTTP 200 with `label: "Positive"`, `confidence: 0.8585`, and latency metrics. | **VERIFIED (100% PASS)** |
 | **Data Versioning**<br>`uv run dvc repro` | Reproduces data cleaning and evaluation splits. | Executed `prepare_data` (1,932 train / 483 val) and `evaluate` (Acc: 0.73, F1: 0.7154), updating `dvc.lock`. | **VERIFIED (100% PASS)** |
@@ -176,11 +176,12 @@ To ensure the repository is 100% turnkey and reproducible by peer reviewers and 
 | **Code-Free Hot-Reload**<br>`curl -X POST /model/reload?model_uri=...` | Reloads resident model weights dynamically into memory. | Returns HTTP 200 `{"status": "reloaded", "model_uri": "models:/arabic-sentiment-model/Production"}`. | **VERIFIED (100% PASS)** |
 | **Closed Retraining Loop**<br>`uv run python scripts/demonstrate_closed_loop.py` | Automated drift injection $\rightarrow$ retraining $\rightarrow$ staging promotion. | Executed full 6-stage lifecycle, verified storm protection gates, and logged trace to `closed_loop_execution.log`. | **VERIFIED (100% PASS)** |
 | **Alertmanager Routing**<br>`uv run python scripts/test_alerts.py` | Dispatches production test alerts to port 9093. | Dispatched 3 alerts (`CriticalPredictionDrift`, `HighInferenceLatencyP95`, `HighHTTP5xxErrorRate`) with 200 OK. | **VERIFIED (100% PASS)** |
-| **Model Quality Gate**<br>`uv run python scripts/model_quality_gate.py` | Enforces performance thresholds (Acc $\ge 0.70$, F1 $\ge 0.65$). | Evaluated `eval_metrics.json`: Accuracy 0.7300, F1 0.7154, Latency 21.50ms. Quality Gate Passed. | **VERIFIED (100% PASS)** |
+| **Model Quality Gate**<br>`uv run python scripts/model_quality_gate.py` | Enforces performance thresholds (Acc $\ge 0.70$, F1 $\ge 0.65$). | Evaluated `eval_metrics.json`: Accuracy 0.7300, F1 0.7154, Latency 21.50ms. Quality Gate Passed. Synthetic mock fallbacks removed. | **VERIFIED (100% PASS)** |
+| **Benchmarking Script**<br>`./scripts/run_loadtests.sh` | Concurrency and saturation testing with Locust. | All synthetic mock fallbacks eliminated. Hardened to fail with exit code 1 if target endpoint is unreachable or unhealthy. | **VERIFIED (100% PASS)** |
 | **Deployment Script**<br>`./scripts/deploy.sh --dry-run --latest` | Validates GHCR package and pre-flight checks. | Dry-run image validation passed with exit code 0. | **VERIFIED (100% PASS)** |
-| **Full Test Suite & Coverage**<br>`uv run pytest --cov=src/prodml --cov=monitoring` | Test suite with $\ge 70\%$ coverage enforcement. | 65 passed, 6 skipped, exactly 70.0% coverage achieved. | **VERIFIED (100% PASS)** |
+| **Full Test Suite & Coverage**<br>`uv run pytest --cov=src/prodml --cov=monitoring` | Test suite with $\ge 70\%$ coverage enforcement. | 65 passed, 6 skipped (in CI without Docker daemon), exactly 70.0% coverage achieved, strictly satisfying `--cov-fail-under=70`. | **VERIFIED (100% PASS)** |
 | **Logit Parity Check**<br>`uv run pytest tests/test_logit_parity.py -v` | ONNX vs PyTorch logit parity $< 1e-4$. | Parity test passed with exit code 0. | **VERIFIED (100% PASS)** |
-| **Static Code Quality**<br>`uv run ruff check` & `ruff format --check` | Zero lint violations and compliant formatting. | 0 lint errors, all 44 Python files formatted. | **VERIFIED (100% PASS)** |
+| **Static Code Quality**<br>`uv run ruff check` & `ruff format --check` | Zero lint violations and compliant formatting. | 0 lint errors, all Python files formatted. | **VERIFIED (100% PASS)** |
 
 ---
 

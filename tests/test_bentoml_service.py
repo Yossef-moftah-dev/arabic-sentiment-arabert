@@ -13,18 +13,17 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(PROJECT_ROOT / "serving") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "serving"))
 
+from bentoml.exceptions import ServiceUnavailable
+
 from serving.service import ArabicSentimentService, SentimentRunner
 
 
-def test_sentiment_runner_fallback() -> None:
-    """Verify SentimentRunner graceful fallback when weights directory is missing."""
+def test_sentiment_runner_unloaded_raises() -> None:
+    """Verify SentimentRunner raises ServiceUnavailable when weights directory is missing."""
     runner = SentimentRunner(model_dir="/non/existent/path")
     assert runner.predictor is None
-    res = runner.predict_batch(["نص تجريبي"])
-    assert len(res) == 1
-    assert res[0]["label"] in {"Negative", "Neutral", "Positive"}
-    assert "confidence" in res[0]
-    assert "probabilities" in res[0]
+    with pytest.raises(ServiceUnavailable):
+        runner.predict_batch(["نص تجريبي"])
 
 
 def test_sentiment_runner_empty_input() -> None:
@@ -33,15 +32,17 @@ def test_sentiment_runner_empty_input() -> None:
     assert runner.predict_batch([]) == []
 
 
-def test_bentoml_service_endpoints() -> None:
+def test_bentoml_service_endpoints(fast_predictor) -> None:
     """Verify health, metadata, and predict methods on ArabicSentimentService."""
     service = ArabicSentimentService()
+    service.runner.predictor = fast_predictor
 
     # Health Check
     health = service.health()
     assert health["status"] == "ok"
     assert health["service"] == "bentoml"
     assert health["memory_resident"] is True
+    assert health["model_loaded"] is True
 
     # Metadata
     meta = service.metadata()
@@ -55,6 +56,14 @@ def test_bentoml_service_endpoints() -> None:
     assert len(preds) == 2
     assert preds[0]["label"] in {"Negative", "Neutral", "Positive"}
     assert preds[1]["label"] in {"Negative", "Neutral", "Positive"}
+
+
+def test_bentoml_service_health_unloaded() -> None:
+    """Verify health check raises ServiceUnavailable when model weights are unloaded."""
+    service = ArabicSentimentService()
+    service.runner.predictor = None
+    with pytest.raises(ServiceUnavailable):
+        service.health()
 
 
 def test_bentoml_service_with_real_or_mock_predictor(fast_predictor) -> None:

@@ -53,26 +53,9 @@ run_locust_benchmark() {
     
     # Check host connectivity
     if ! curl -s -f -m 3 "$host_url/health" > /dev/null 2>&1; then
-        echo "  [WARNING] Target $host_url not responding. Running mock benchmark simulation..."
-        # Create valid HTML report template demonstrating the benchmark result
-        cat <<EOF > "$html_report"
-<!DOCTYPE html>
-<html>
-<head><title>Locust Benchmark Report - $target_name</title></head>
-<body>
-<h1>Locust Benchmark Report - $target_name</h1>
-<p>Target: $host_url | Concurrency: $USERS Users | Duration: $DURATION</p>
-<table border="1">
-<tr><th>Type</th><th>Name</th><th>Requests</th><th>Failures</th><th>Median (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th><th>RPS</th></tr>
-<tr><td>POST</td><td>/predict (single)</td><td>1250</td><td>0</td><td>22.4</td><td>34.1</td><td>48.2</td><td>83.3</td></tr>
-<tr><td>POST</td><td>/predict/batch</td><td>310</td><td>0</td><td>28.1</td><td>41.5</td><td>56.0</td><td>20.6</td></tr>
-<tr><td>TOTAL</td><td>All</td><td>1560</td><td>0</td><td>23.5</td><td>35.6</td><td>49.8</td><td>104.0</td></tr>
-</table>
-</body>
-</html>
-EOF
-        echo "  ✓ Generated simulated benchmark report: $html_report"
-        return 0
+        echo "  [ERROR] Target $host_url is not reachable or healthy."
+        echo "          Cannot execute Locust load test against an unavailable target."
+        exit 1
     fi
 
     uv run locust \

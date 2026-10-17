@@ -71,20 +71,17 @@ def main() -> None:
         }
     else:
         if not metrics_file.exists():
-            logger.error("Metrics file not found at: %s", metrics_file)
-            logger.info("Generating default validation metrics from current model...")
-            metrics = {
-                "accuracy": 0.730,
-                "macro_f1": 0.715,
-                "mean_latency_ms": 21.5,
-                "val_loss": 0.295,
-            }
-        else:
-            try:
-                metrics = json.loads(metrics_file.read_text(encoding="utf-8"))
-            except Exception as exc:  # noqa: BLE001
-                logger.error("Failed to parse metrics file: %s", exc)
-                sys.exit(1)
+            logger.error(
+                "Metrics file not found at: %s. Cannot enforce quality gate without authentic evaluation metrics.",
+                metrics_file,
+            )
+            sys.exit(1)
+
+        try:
+            metrics = json.loads(metrics_file.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to parse metrics file: %s", exc)
+            sys.exit(1)
 
     accuracy = float(metrics.get("accuracy", 0.0))
     macro_f1 = float(metrics.get("macro_f1", 0.0))
