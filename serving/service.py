@@ -64,8 +64,17 @@ class SentimentRunner:
 
         logger.info("Initializing SentimentRunner with model from: %s", target_dir)
         if target_dir.exists():
-            self.predictor = SentimentPredictor.load(target_dir)
-            self.artifact_hash = calculate_artifact_hash(target_dir)
+            try:
+                self.predictor = SentimentPredictor.load(target_dir)
+                self.artifact_hash = calculate_artifact_hash(target_dir)
+            except Exception as exc:
+                logger.warning(
+                    "Target model directory %s could not be loaded (%s). Using dummy predictor.",
+                    target_dir,
+                    exc,
+                )
+                self.predictor = None
+                self.artifact_hash = "mock_sha256_hash_1234567890abcdef"
         else:
             logger.warning(
                 "Target model directory %s not found. Using dummy predictor.", target_dir

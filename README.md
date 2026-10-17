@@ -11,8 +11,8 @@ An end-to-end MLOps platform around AraBERT: train, track, serve, monitor, and r
 
 [![CI](https://github.com/Yossef-moftah-dev/arabic-sentiment-arabert/actions/workflows/ci.yml/badge.svg)](https://github.com/Yossef-moftah-dev/arabic-sentiment-arabert/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/badge/Release-v0.4.0-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/Tests-68%20Passed-brightgreen.svg)](tests/)
-[![Coverage](https://img.shields.io/badge/Coverage-71%25-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-65%20Passed%20%7C%206%20Skipped-brightgreen.svg)](tests/)
+[![Coverage](https://img.shields.io/badge/Coverage-70%25-brightgreen.svg)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](pyproject.toml)
 [![Airflow](https://img.shields.io/badge/Airflow-2.9+-017CEE?logo=apacheairflow&logoColor=white)](https://airflow.apache.org/)
 [![MLflow](https://img.shields.io/badge/MLflow-tracked-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org/)
@@ -32,10 +32,15 @@ Choose between running just the inference service or bringing up the entire MLOp
 
 ### Track 1: Fast Inference Service
 ```bash
-# Run standalone serving container from GitHub Container Registry
+# 1. Download model weights if not already present (or let Track 2 handle it automatically)
+./scripts/download_model.sh
+
+# 2. Run standalone serving container mounting the fine-tuned weights
 docker run -d --name prodml-serving -p 8000:8000 \
+  -v $(pwd)/outputs/final_model:/app/outputs/final_model:ro \
   ghcr.io/yossef-moftah-dev/arabic-sentiment-arabert:latest
 ```
+> 💡 *Note: Model weights (~516 MB) are mounted via volume to maintain minimal OCI image size. Alternatively, use Track 2 below which manages model downloads and multi-service orchestration automatically.*
 
 ### Track 2: Full MLOps Stack
 ```bash
@@ -84,7 +89,7 @@ Pipelines and dataset splits are hashed and cached with DVC backed by MinIO S3 o
 # Execute and cache reproducible pipeline stages (prepare_data -> evaluate)
 uv run dvc repro
 
-# Synchronize dataset artifacts with MinIO remote
+# Synchronize dataset artifacts with MinIO remote (requires Track 2 MinIO active on :9000)
 uv run dvc push && uv run dvc pull
 ```
 
@@ -122,6 +127,9 @@ uv run python scripts/demonstrate_model_swap.py
   curl -s http://localhost:8000/health
   curl -s http://localhost:8000/metadata
   ```
+- **Hardware Profile & Performance Characteristics (Honesty Clause):**
+  - *NVIDIA GPU Clusters:* Compiled TensorRT FP16 / Triton dynamic micro-batching satisfies sub-50ms SLA targets.
+  - *CPU Instances (e.g. AWS EC2 2-vCPU / 4GB RAM):* Runs natively on CPU via ONNX Runtime / PyTorch (~450–1000 ms single latency). Under heavy concurrency (50 users), queueing causes tail latency to scale. Live empirical Locust report on 4GB EC2 is documented in [`reports/locust_ec2_live.html`](reports/locust_ec2_live.html).
 
 ### 4. Production Observability & Drift Detection
 - **Live Prometheus Telemetry (`GET /metrics`):** Request rates, p50/p95/p99 quantiles, and sentiment distributions with multi-worker concurrency protection (`PROMETHEUS_MULTIPROC_DIR`).
