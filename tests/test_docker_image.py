@@ -15,6 +15,8 @@ from collections.abc import Generator
 import httpx
 import pytest
 
+from prodml.download import is_model_present
+
 IMAGE_NAME = os.getenv("PRODML_IMAGE", "prodml-service:latest")
 TEST_PORT = 8005
 BASE_URL = f"http://127.0.0.1:{TEST_PORT}"
@@ -105,6 +107,11 @@ def running_test_container() -> Generator[str, None, None]:
         ).stdout.strip()
         + "/outputs/final_model"
     )
+
+    if not is_model_present(model_dir):
+        pytest.skip(
+            f"Model artifacts not present in '{model_dir}'. Skipping live container inference tests."
+        )
 
     # Start container
     cmd = [

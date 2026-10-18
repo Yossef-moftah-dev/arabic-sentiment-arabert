@@ -61,6 +61,12 @@ jobs:
           else
             echo "No remote credentials, proceeding with repository dataset."
           fi
+          if [ ! -f data/processed/val.csv ] || [ ! -f data/processed/train.csv ]; then
+            echo "Processed splits not found. Preparing dataset from repository raw parquet..."
+            uv run python scripts/prepare_data.py \
+              --input data/Arabic_Reviews_of_SHEIN/train-00000-of-00001.parquet \
+              --output-dir data/processed
+          fi
 
       - name: Execute Pipeline Training & Evaluation
         run: |
